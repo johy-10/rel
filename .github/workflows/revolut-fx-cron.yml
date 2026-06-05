@@ -1,0 +1,43 @@
+name: Revolut FX Cron
+
+on:
+  schedule:
+    - cron: '7 * * * *'      # každou hodinu v :07 (ne přesně v :00, kde má GitHub návaly)
+  workflow_dispatch:          # umožní i ruční spuštění
+
+# Zabrání souběhu dvou běhů naráz
+concurrency:
+  group: revolut-fx-cron
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          npm init -y
+          npm install playwright-extra puppeteer-extra-plugin-stealth playwright
+          npx playwright install --with-deps chromium
+
+      - name: Scrape and upload
+        env:
+          WEDOS_UPLOAD_URL: ${{ secrets.WEDOS_UPLOAD_URL }}
+          WEDOS_UPLOAD_TOKEN: ${{ secrets.WEDOS_UPLOAD_TOKEN }}
+        run: node scrape.js
+
+      - name: Upload debug artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-rates
+          path: latest_rates.json
+          retention-days: 7
